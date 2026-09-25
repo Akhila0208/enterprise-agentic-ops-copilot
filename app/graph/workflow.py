@@ -1,5 +1,7 @@
 from typing import TypedDict
-
+from app.services.bedrock_classifier import (
+    classify_incident_with_bedrock,
+)
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import interrupt
@@ -18,6 +20,9 @@ class AgentState(TypedDict, total=False):
 
     # Classification / investigation
     incident_type: str
+    affected_service: str
+    classification_confidence: float
+    recommended_investigation: list[str]
     evidence: list[str]
 
     # Risk
@@ -51,28 +56,32 @@ class AgentState(TypedDict, total=False):
 # =========================================================
 
 def classify_request(state: AgentState):
-    request = state["user_request"].lower()
-
-    if "vpn" in request:
-        incident_type = "vpn_access"
-
-    elif "password" in request or "login" in request:
-        incident_type = "authentication"
-
-    else:
-        incident_type = "general_it"
+    analysis = classify_incident_with_bedrock(
+        state["user_request"]
+    )
 
     write_audit_event(
         "request_classified",
         {
             "employee_id": state.get("employee_id"),
             "user_request": state["user_request"],
-            "incident_type": incident_type,
+            "incident_type": analysis.incident_type,
+            "affected_service": analysis.affected_service,
+            "confidence": analysis.confidence,
+            "recommended_investigation": (
+                analysis.recommended_investigation
+            ),
+            "classifier": "amazon_nova_pro",
         },
     )
 
     return {
-        "incident_type": incident_type
+        "incident_type": analysis.incident_type,
+        "affected_service": analysis.affected_service,
+        "classification_confidence": analysis.confidence,
+        "recommended_investigation": (
+            analysis.recommended_investigation
+        ),
     }
 
 
@@ -81,28 +90,44 @@ def classify_request(state: AgentState):
 # =========================================================
 
 def investigate(state: AgentState):
-    incident_type = state["incident_type"]
-    employee_id = state.get("employee_id", "E1001")
+    employee_id = state.get(
+        "employee_id",
+        "E1001",
+    )
 
-    if incident_type == "vpn_access":
+    affected_service = state.get(
+        "affected_service",
+        "general_it",
+    )
+
+    investigation_plan = state.get(
+        "recommended_investigation",
+        [],
+    )
+
+    # -----------------------------------------------------
+    # Service tool selection based on Bedrock classification
+    # -----------------------------------------------------
+
+    if affected_service in {
+        "vpn",
+        "authentication",
+    }:
         service_result = service_status.invoke(
             {
-                "service_name": "vpn"
-            }
-        )
-
-    elif incident_type == "authentication":
-        service_result = service_status.invoke(
-            {
-                "service_name": "authentication"
+                "service_name": affected_service
             }
         )
 
     else:
         service_result = {
-            "service": "general_it",
+            "service": affected_service,
             "status": "unknown",
         }
+
+    # -----------------------------------------------------
+    # Employee account lookup
+    # -----------------------------------------------------
 
     employee_result = employee_lookup.invoke(
         {
@@ -110,9 +135,19 @@ def investigate(state: AgentState):
         }
     )
 
+    # -----------------------------------------------------
+    # Aggregate evidence
+    # -----------------------------------------------------
+
     evidence = [
-        f"Service checked: {service_result['service']}",
-        f"Service status: {service_result['status']}",
+        (
+            "Bedrock selected service: "
+            f"{affected_service}"
+        ),
+        (
+            "Service status: "
+            f"{service_result['status']}"
+        ),
         (
             "Employee account status: "
             f"{employee_result['account_status']}"
@@ -122,12 +157,26 @@ def investigate(state: AgentState):
             f"{employee_result.get('mfa_status', 'unknown')}"
         ),
     ]
+    
+
+    # -----------------------------------------------------
+    # Audit
+    # -----------------------------------------------------
 
     write_audit_event(
         "investigation_completed",
         {
             "employee_id": employee_id,
-            "incident_type": incident_type,
+            "incident_type": state[
+                "incident_type"
+            ],
+            "affected_service": affected_service,
+            "classification_confidence": state.get(
+                "classification_confidence"
+            ),
+            "recommended_investigation": (
+                investigation_plan
+            ),
             "service_result": service_result,
             "employee_result": employee_result,
             "evidence": evidence,
@@ -499,54 +548,83 @@ def create_final_response(state: AgentState):
         0,
     )
 
+    confidence = state.get(
+        "classification_confidence",
+        0.0,
+    )
+
+    affected_service = state.get(
+        "affected_service",
+        "unknown",
+    )
+
+    investigation_plan = state.get(
+        "recommended_investigation",
+        [],
+    )
+
+    plan_text = (
+        "\n- ".join(investigation_plan)
+        if investigation_plan
+        else "N/A"
+    )
+
+    evidence = state.get(
+        "evidence",
+        [],
+    )
+
+    evidence_text = (
+        "\n- ".join(evidence)
+        if evidence
+        else "N/A"
+    )
+
     response = (
-        f"Incident Type: "
-        f"{state['incident_type']}\n"
-        f"Risk Level: "
-        f"{state['risk_level']}\n\n"
-        "Evidence:\n- "
-        + "\n- ".join(state["evidence"])
-        + "\n\n"
+        f"Incident Type: {state.get('incident_type', 'unknown')}\n"
+        f"Risk Level: {state.get('risk_level', 'unknown')}\n"
+        f"Affected Service: {affected_service}\n"
+        f"Bedrock Confidence: {confidence:.2f}\n\n"
+
+        "AI Investigation Plan:\n- "
+        f"{plan_text}\n\n"
+
+        "Observed Evidence:\n- "
+        f"{evidence_text}\n\n"
+
         f"Remediation Action: "
         f"{state.get('remediation_action', 'N/A')}\n"
+
         f"Execution Status: "
-        f"{state['execution_status']}\n"
-        f"Attempts: "
-        f"{attempt_count}\n"
-        f"Retries Used: "
-        f"{retries_used}\n"
-        f"Operation ID: "
-        f"{operation_id}\n"
-        f"Escalation Incident ID: "
-        f"{escalation_id}\n"
+        f"{state.get('execution_status', 'unknown')}\n"
+
+        f"Attempts: {attempt_count}\n"
+        f"Retries Used: {retries_used}\n"
+
+        f"Operation ID: {operation_id}\n"
+        f"Escalation Incident ID: {escalation_id}\n"
+
         f"Verification Status: "
-        f"{state['verification_status']}"
+        f"{state.get('verification_status', 'unknown')}"
     )
 
     write_audit_event(
         "workflow_completed",
         {
-            "employee_id": state.get(
-                "employee_id"
-            ),
-            "incident_type": state[
-                "incident_type"
-            ],
-            "risk_level": state[
-                "risk_level"
-            ],
-            "execution_status": state[
-                "execution_status"
-            ],
+            "employee_id": state.get("employee_id"),
+            "incident_type": state.get("incident_type"),
+            "risk_level": state.get("risk_level"),
+            "affected_service": affected_service,
+            "classification_confidence": confidence,
+            "recommended_investigation": investigation_plan,
+            "execution_status": state.get("execution_status"),
             "attempt_count": attempt_count,
             "retries_used": retries_used,
             "operation_id": operation_id,
-            "escalation_incident_id": (
-                escalation_id
-            ),
-            "verification_status": state[
+            "escalation_incident_id": escalation_id,
+            "verification_status": state.get(
                 "verification_status"
-            ],
+            ),
         },
     )
 
