@@ -1,0 +1,38 @@
+[
+    {
+      "id": "vpn_001",
+      "request": "An employee cannot connect to the corporate VPN after changing their phone.",
+      "expected_incident_type": "vpn_access",
+      "expected_service": "vpn"
+    },
+    {
+      "id": "vpn_002",
+      "request": "Remote access stopped working after the employee replaced their mobile device.",
+      "expected_incident_type": "vpn_access",
+      "expected_service": "vpn"
+    },
+    {
+      "id": "auth_001",
+      "request": "The employee cannot log in after resetting their password.",
+      "expected_incident_type": "authentication",
+      "expected_service": "authentication"
+    },
+    {
+      "id": "auth_002",
+      "request": "MFA authentication is failing even though the employee account is active.",
+      "expected_incident_type": "authentication",
+      "expected_service": "authentication"
+    },
+    {
+      "id": "general_001",
+      "request": "The employee's laptop is running slowly after installing several applications.",
+      "expected_incident_type": "general_it",
+      "expected_service": "general_it"
+    },
+    {
+      "id": "general_002",
+      "request": "A user reports that their workstation keeps freezing during normal work.",
+      "expected_incident_type": "general_it",
+      "expected_service": "general_it"
+    }
+  ]
