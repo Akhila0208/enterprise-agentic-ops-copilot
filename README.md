@@ -19,7 +19,27 @@ The system analyzes IT support incidents, reasons about the affected service, ga
 - Structured audit logging
 - Automated pytest coverage
 - Live multi-scenario Bedrock evaluation
+## Demo
 
+### Human-in-the-Loop Approval
+
+The agent analyzes the incident, gathers evidence, assesses operational risk, and pauses before sensitive remediation until explicit human approval is provided.
+
+![Human-in-the-Loop Approval](docs/images/workflow-approval.png)
+
+### Stateful Workflow Resume
+
+After approval, LangGraph resumes the same workflow thread and continues remediation, verification, and final response generation.
+
+![Completed Agent Workflow](docs/images/workflow-completed.png)
+
+### Automated Testing
+
+The project includes deterministic API and workflow tests that validate the approval lifecycle without making live Amazon Bedrock calls during unit testing.
+
+![Automated Test Results](docs/images/automated-tests.png)
+
+The current automated test suite completes successfully with **5 passing tests**.
 ---
 
 ## Architecture
