@@ -8,19 +8,17 @@ The system analyzes IT support incidents, reasons about the affected service, ga
 
 ## Project Highlights
 
-- Amazon Nova Pro reasoning through Amazon Bedrock
-- LangGraph-based agent orchestration
-- Structured incident classification with Pydantic validation
-- AI-generated investigation planning
-- Bedrock-guided enterprise tool selection
-- Human-in-the-loop approval for sensitive remediation
-- Tool-based employee and service investigation
-- Automated remediation execution
-- Retry handling for transient failures
-- Incident escalation after retry exhaustion
-- Result verification after remediation
-- Structured JSONL audit logging
-- Automated multi-scenario agent evaluation
+- Amazon Bedrock + Amazon Nova Pro
+- LangGraph stateful agent orchestration
+- Structured Pydantic outputs
+- Enterprise tool calling
+- Human-in-the-loop approval with interrupt/resume
+- Retry and escalation handling
+- FastAPI REST API
+- Swagger/OpenAPI documentation
+- Structured audit logging
+- Automated pytest coverage
+- Live multi-scenario Bedrock evaluation
 
 ---
 
