@@ -19,6 +19,7 @@ The system analyzes IT support incidents, reasons about the affected service, ga
 - Structured audit logging
 - Automated pytest coverage
 - Live multi-scenario Bedrock evaluation
+
 ## Demo
 
 ### Human-in-the-Loop Approval
@@ -40,6 +41,7 @@ The project includes deterministic API and workflow tests that validate the appr
 ![Automated Test Results](docs/images/automated-tests.png)
 
 The current automated test suite completes successfully with **5 passing tests**.
+
 ---
 
 ## Architecture
